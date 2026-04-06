@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Mapa Colaborativo</title>
+  <style>
+    #mapa-container {
+      position: relative;
+      width: 800px;
+      cursor: crosshair;
+    }
+    #mapa {
+      width: 100%;
+      display: block;
+    }
+
+    /* Cada ponto será um X vermelho */
+    .ponto {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .ponto::before,
+    .ponto::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 16px;
+      height: 2px;
+      background-color: red;
+      transform-origin: center;
+    }
+    .ponto::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+    .ponto::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+  </style>
+</head>
+<body>
+
+<h2>Mapa Colaborativo</h2>
+
+<div id="mapa-container">
+  <img id="mapa" src="sua_imagem.jpeg" alt="Mapa" />
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyC712dmcNnW8Rojr9soqCAfKNrRJtoZvo",
+    authDomain: "mapas-de9cf.firebaseapp.com",
+    databaseURL: "https://mapas-de9cf-default-rtdb.firebaseio.com",
+    projectId: "mapas-de9cf",
+    storageBucket: "mapas-de9cf.appspot.com",
+    messagingSenderId: "59507543116",
+    appId: "1:59507543116:web:8471d5870d0820d17938e9"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  const mapa = document.getElementById('mapa');
+  const container = document.getElementById('mapa-container');
+  const pontosDOM = {}; // armazena referência aos pontos
+
+  function criarPonto(id, x, y) {
+    const div = document.createElement('div');
+    div.classList.add('ponto');
+    div.style.left = x + 'px';
+    div.style.top = y + 'px';
+    div.dataset.id = id;
+
+    // apagar ponto ao clicar
+    div.addEventListener('click', function(event) {
+      event.stopPropagation();
+      const pontoId = this.dataset.id;
+      db.ref('pontos/' + pontoId).remove();
+    });
+
+    container.appendChild(div);
+    pontosDOM[id] = div;
+  }
+
+  // adicionar ponto novo
+  mapa.onclick = function(e) {
+    const x = e.offsetX;
+    const y = e.offsetY;
+    db.ref('pontos').push({ x, y });
+  };
+
+  // desenhar ponto existente
+  db.ref('pontos').on('child_added', snapshot => {
+    const id = snapshot.key;
+    const ponto = snapshot.val();
+    criarPonto(id, ponto.x, ponto.y);
+  });
+
+  // remover ponto removido do Firebase
+  db.ref('pontos').on('child_removed', snapshot => {
+    const id = snapshot.key;
+    const div = pontosDOM[id];
+    if (div) {
+      div.remove();
+      delete pontosDOM[id];
+    }
+  });
+</script>
+
+</body>
+</html>
