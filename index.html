@@ -49,18 +49,19 @@
   <img id="mapa" src="sua_imagem.jpeg" alt="Mapa" />
 </div>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
   const firebaseConfig = {
-    apiKey: "AIzaSyC712dmcNnW8Rojr9soqCAfKNrRJtoZvo",
-    authDomain: "mapas-de9cf.firebaseapp.com",
-    databaseURL: "https://mapas-de9cf-default-rtdb.firebaseio.com",
-    projectId: "mapas-de9cf",
-    storageBucket: "mapas-de9cf.appspot.com",
-    messagingSenderId: "59507543116",
-    appId: "1:59507543116:web:8471d5870d0820d17938e9"
+    apiKey: "COLOQUE_SUA_API_KEY_AQUI",
+    authDomain: "mapas-central-62849.firebaseapp.com",
+    databaseURL: "https://mapas-central-62849-default-rtdb.firebaseio.com/",
+    projectId: "mapas-central-62849",
+    storageBucket: "mapas-central-62849.appspot.com",
+    messagingSenderId: "COLOQUE_SEU_ID_AQUI",
+    appId: "COLOQUE_SEU_APP_ID_AQUI"
   };
 
   firebase.initializeApp(firebaseConfig);
@@ -70,6 +71,7 @@
   const container = document.getElementById('mapa-container');
   const pontosDOM = {}; // armazena referência aos pontos
 
+  // Função para criar ponto X na tela
   function criarPonto(id, x, y) {
     const div = document.createElement('div');
     div.classList.add('ponto');
@@ -77,7 +79,7 @@
     div.style.top = y + 'px';
     div.dataset.id = id;
 
-    // apagar ponto ao clicar
+    // Apagar ponto ao clicar
     div.addEventListener('click', function(event) {
       event.stopPropagation();
       const pontoId = this.dataset.id;
@@ -88,21 +90,21 @@
     pontosDOM[id] = div;
   }
 
-  // adicionar ponto novo
+  // Adicionar ponto novo ao clicar na imagem
   mapa.onclick = function(e) {
     const x = e.offsetX;
     const y = e.offsetY;
     db.ref('pontos').push({ x, y });
   };
 
-  // desenhar ponto existente
+  // Desenhar pontos existentes do Firebase
   db.ref('pontos').on('child_added', snapshot => {
     const id = snapshot.key;
     const ponto = snapshot.val();
     criarPonto(id, ponto.x, ponto.y);
   });
 
-  // remover ponto removido do Firebase
+  // Remover ponto quando apagado do Firebase
   db.ref('pontos').on('child_removed', snapshot => {
     const id = snapshot.key;
     const div = pontosDOM[id];
