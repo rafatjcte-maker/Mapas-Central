@@ -6,7 +6,7 @@
   <style>
     #mapa-container {
       position: relative;
-      width: 800px;
+      width: 800px; /* ajuste se quiser outra largura */
       cursor: crosshair;
     }
     #mapa {
@@ -33,12 +33,8 @@
       background-color: red;
       transform-origin: center;
     }
-    .ponto::before {
-      transform: translate(-50%, -50%) rotate(45deg);
-    }
-    .ponto::after {
-      transform: translate(-50%, -50%) rotate(-45deg);
-    }
+    .ponto::before { transform: translate(-50%, -50%) rotate(45deg); }
+    .ponto::after { transform: translate(-50%, -50%) rotate(-45deg); }
   </style>
 </head>
 <body>
@@ -49,19 +45,20 @@
   <img id="mapa" src="sua_imagem.jpeg" alt="Mapa" />
 </div>
 
-<!-- Firebase -->
+<!-- Firebase compatível com navegador -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
+  // Configuração do seu Firebase
   const firebaseConfig = {
-    apiKey: "COLOQUE_SUA_API_KEY_AQUI",
+    apiKey: "AIzaSyASJAChidjwTNrZznygxsjTtOVX5YTi6Vc",
     authDomain: "mapas-central-62849.firebaseapp.com",
-    databaseURL: "https://mapas-central-62849-default-rtdb.firebaseio.com/",
+    databaseURL: "https://mapas-central-62849-default-rtdb.firebaseio.com",
     projectId: "mapas-central-62849",
-    storageBucket: "mapas-central-62849.appspot.com",
-    messagingSenderId: "COLOQUE_SEU_ID_AQUI",
-    appId: "COLOQUE_SEU_APP_ID_AQUI"
+    storageBucket: "mapas-central-62849.firebasestorage.app",
+    messagingSenderId: "404730642965",
+    appId: "1:404730642965:web:7b89ed72c60aac32d9c41c"
   };
 
   firebase.initializeApp(firebaseConfig);
@@ -69,9 +66,9 @@
 
   const mapa = document.getElementById('mapa');
   const container = document.getElementById('mapa-container');
-  const pontosDOM = {}; // armazena referência aos pontos
+  const pontosDOM = {}; // guarda referência aos Xs
 
-  // Função para criar ponto X na tela
+  // Criar ponto X na tela
   function criarPonto(id, x, y) {
     const div = document.createElement('div');
     div.classList.add('ponto');
@@ -82,22 +79,21 @@
     // Apagar ponto ao clicar
     div.addEventListener('click', function(event) {
       event.stopPropagation();
-      const pontoId = this.dataset.id;
-      db.ref('pontos/' + pontoId).remove();
+      db.ref('pontos/' + this.dataset.id).remove();
     });
 
     container.appendChild(div);
     pontosDOM[id] = div;
   }
 
-  // Adicionar ponto novo ao clicar na imagem
+  // Adicionar novo ponto ao clicar na imagem
   mapa.onclick = function(e) {
     const x = e.offsetX;
     const y = e.offsetY;
     db.ref('pontos').push({ x, y });
   };
 
-  // Desenhar pontos existentes do Firebase
+  // Mostrar pontos existentes do Firebase
   db.ref('pontos').on('child_added', snapshot => {
     const id = snapshot.key;
     const ponto = snapshot.val();
