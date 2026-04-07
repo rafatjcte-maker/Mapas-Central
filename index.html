@@ -1,194 +1,206 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8">
-  <title>Mapa Interativo - Versão Final Corrigida</title>
-  <style>
-    body { font-family: sans-serif; margin: 0; background: #222; color: white; display: flex; flex-direction: column; align-items: center; }
-    
-    .toolbar { background: #333; width: 100%; padding: 15px; display: flex; justify-content: center; gap: 10px; position: sticky; top: 0; z-index: 1000; border-bottom: 2px solid #444; }
-    
-    #viewport { 
-      width: 95vw; 
-      height: 65vh; 
-      overflow: auto; 
-      background: #111; 
-      margin-top: 10px; 
-      border: 1px solid #555;
-      position: relative;
-    }
+    <meta charset="UTF-8">
+    <title>Mapa Colaborativo - Versão Blindada</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #1a1a1a; color: white; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* Barra de Ferramentas */
+        .toolbar { background: #333; padding: 10px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #444; z-index: 1000; }
+        
+        /* Área do Mapa */
+        #viewport { flex: 1; overflow: auto; position: relative; background: #000; }
+        #mapa-container { position: relative; transform-origin: 0 0; display: inline-block; }
+        
+        #mapa { 
+            display: block; 
+            pointer-events: none; /* Impede que o navegador tente "pegar" a imagem */
+            user-select: none;
+            -webkit-user-drag: none;
+        }
 
-    #mapa-container { position: relative; transform-origin: 0 0; }
-    #mapa { display: block; user-select: none; pointer-events: none; }
-    
-    canvas { position: absolute; top: 0; left: 0; z-index: 5; cursor: crosshair; touch-action: none; }
+        canvas { 
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            z-index: 5; 
+            cursor: crosshair; 
+            touch-action: none; 
+        }
 
-    .ponto-wrapper { 
-      position: absolute; 
-      z-index: 100; /* Garante que fique acima de tudo */
-      transform: translate(-50%, -50%); 
-      text-align: center; 
-      cursor: pointer;
-    }
-    .check-mark { color: #00ff44; font-size: 28px; font-weight: bold; text-shadow: 2px 2px 4px #000; pointer-events: auto; }
-    .nota-label { background: rgba(255,255,255,0.9); color: black; padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-top: 2px; font-weight: bold; border: 1px solid black; }
+        /* Marcadores */
+        .ponto-wrapper {
+            position: absolute;
+            z-index: 100;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: auto; /* Garante que o ✓ seja clicável para apagar */
+        }
+        .check-mark { color: #00ff44; font-size: 30px; font-weight: bold; text-shadow: 2px 2px 4px #000; cursor: pointer; line-height: 1; }
+        .nota-label { background: white; color: black; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #000; margin-top: 2px; display: block; }
 
-    .footer { background: #333; width: 100%; padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-    input[type="text"] { width: 300px; padding: 10px; border-radius: 4px; border: none; font-size: 16px; }
-    
-    button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; background: #eee; transition: 0.2s; }
-    button.active { background: #007bff; color: white; }
-    .btn-clear { background: #ff4444; color: white; }
-  </style>
+        /* Rodapé de Anotação */
+        .footer { background: #333; padding: 15px; border-top: 2px solid #444; text-align: center; }
+        input[type="text"] { width: 300px; padding: 10px; border-radius: 4px; border: 1px solid #555; }
+        
+        button { padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; background: #eee; }
+        button.active { background: #007bff; color: white; }
+        .btn-clear { background: #ff4444; color: white; margin-left: 20px; }
+    </style>
 </head>
 <body>
 
 <div class="toolbar">
-  <button id="btn-check" class="active">Modo Check ✓</button>
-  <button id="btn-draw">Modo Desenho</button>
-  <button id="btn-zoom-in">Zoom +</button>
-  <button id="btn-zoom-out">Zoom -</button>
-  <button id="btn-clear" class="btn-clear">Limpar Tudo</button>
+    <button id="btn-check" class="active">Modo Check ✓</button>
+    <button id="btn-draw">Modo Desenho</button>
+    <button id="btn-zoom-in">Zoom +</button>
+    <button id="btn-zoom-out">Zoom -</button>
+    <button id="btn-clear" class="btn-clear">LIMPAR TUDO</button>
 </div>
 
 <div id="viewport">
-  <div id="mapa-container">
-    <img id="mapa" src="sua_imagem.jpeg" alt="Aguardando imagem...">
-    <canvas id="canvas-camada"></canvas>
-  </div>
+    <div id="mapa-container">
+        <img id="mapa" src="sua_imagem.jpeg">
+        <canvas id="canvas-camada"></canvas>
+    </div>
 </div>
 
 <div class="footer">
-  <div>
-    <strong>Anotação (opcional):</strong>
-    <input type="text" id="input-nota" placeholder="Digite aqui ANTES de clicar...">
-  </div>
-  <p style="font-size: 13px; color: #ccc;">No modo Check, clique no mapa para marcar. Clique no ✓ para apagar.</p>
+    <strong>Anotação:</strong> 
+    <input type="text" id="input-nota" placeholder="Escreva aqui e DEPOIS clique no mapa">
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-  // Configuração Firebase
-  const firebaseConfig = {
-    apiKey: "AIzaSyASJAChidjwTNrZznygxsjTtOVX5YTi6Vc",
-    authDomain: "mapas-central-62849.firebaseapp.com",
-    databaseURL: "https://mapas-central-62849-default-rtdb.firebaseio.com",
-    projectId: "mapas-central-62849",
-    storageBucket: "mapas-central-62849.firebasestorage.app",
-    messagingSenderId: "404730642965",
-    appId: "1:404730642965:web:7b89ed72c60aac32d9c41c"
-  };
-
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-
-  const container = document.getElementById('mapa-container');
-  const mapaImg = document.getElementById('mapa');
-  const canvas = document.getElementById('canvas-camada');
-  const ctx = canvas.getContext('2d');
-  const inputNota = document.getElementById('input-nota');
-
-  let zoom = 1.0;
-  let modo = 'check';
-  let desenhando = false;
-
-  // Sincronizar Canvas
-  mapaImg.onload = () => {
-    canvas.width = mapaImg.naturalWidth;
-    canvas.height = mapaImg.naturalHeight;
-    carregarDesenho();
-  };
-  if (mapaImg.complete) mapaImg.onload();
-
-  // Funções de Zoom
-  document.getElementById('btn-zoom-in').onclick = () => { zoom += 0.2; aplicarZoom(); };
-  document.getElementById('btn-zoom-out').onclick = () => { if(zoom > 0.2) zoom -= 0.2; aplicarZoom(); };
-  function aplicarZoom() { container.style.transform = `scale(${zoom})`; }
-
-  // Alternar Modos
-  document.getElementById('btn-check').onclick = () => { modo = 'check'; atualizarUI('btn-check'); };
-  document.getElementById('btn-draw').onclick = () => { modo = 'draw'; atualizarUI('btn-draw'); };
-  function atualizarUI(id) {
-    document.getElementById('btn-check').classList.remove('active');
-    document.getElementById('btn-draw').classList.remove('active');
-    document.getElementById(id).classList.add('active');
-  }
-
-  // Interação com Canvas
-  canvas.addEventListener('mousedown', (e) => {
-    // Pegar coordenadas exatas dentro do canvas independente do zoom
-    const x = e.offsetX;
-    const y = e.offsetY;
-
-    if (modo === 'check') {
-      const texto = inputNota.value.trim();
-      db.ref('pontos').push({ x, y, nota: texto });
-      inputNota.value = ""; // Limpa após marcar
-    } else {
-      desenhando = true;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-    }
-  });
-
-  canvas.addEventListener('mousemove', (e) => {
-    if (!desenhando || modo !== 'draw') return;
-    ctx.lineTo(e.offsetX, e.offsetY);
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 5;
-    ctx.lineJoin = "round";
-    ctx.stroke();
-  });
-
-  window.addEventListener('mouseup', () => {
-    if (desenhando) {
-      desenhando = false;
-      db.ref('desenho').set(canvas.toDataURL());
-    }
-  });
-
-  // Firebase: Marcadores
-  db.ref('pontos').on('child_added', snap => {
-    const p = snap.val();
-    const div = document.createElement('div');
-    div.className = 'ponto-wrapper';
-    div.id = snap.key;
-    div.style.left = p.x + 'px';
-    div.style.top = p.y + 'px';
-    
-    div.innerHTML = `<div class="check-mark">✓</div>${p.nota ? `<div class="nota-label">${p.nota}</div>` : ''}`;
-    
-    // Apagar ao clicar
-    div.onclick = (e) => {
-      e.stopPropagation();
-      db.ref('pontos/' + snap.key).remove();
+    // Configuração Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyASJAChidjwTNrZznygxsjTtOVX5YTi6Vc",
+        authDomain: "mapas-central-62849.firebaseapp.com",
+        databaseURL: "https://mapas-central-62849-default-rtdb.firebaseio.com",
+        projectId: "mapas-central-62849",
+        storageBucket: "mapas-central-62849.firebasestorage.app",
+        messagingSenderId: "404730642965",
+        appId: "1:404730642965:web:7b89ed72c60aac32d9c41c"
     };
-    
-    container.appendChild(div);
-  });
 
-  db.ref('pontos').on('child_removed', snap => {
-    document.getElementById(snap.key)?.remove();
-  });
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-  // Firebase: Desenho
-  function carregarDesenho() {
-    db.ref('desenho').on('value', snap => {
-      const data = snap.val();
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (data) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0);
-        img.src = data;
-      }
+    const container = document.getElementById('mapa-container');
+    const mapaImg = document.getElementById('mapa');
+    const canvas = document.getElementById('canvas-camada');
+    const ctx = canvas.getContext('2d');
+    const inputNota = document.getElementById('input-nota');
+
+    let zoom = 1.0;
+    let modo = 'check';
+    let desenhando = false;
+
+    // Ajusta o Canvas apenas quando a imagem carregar
+    mapaImg.onload = () => {
+        canvas.width = mapaImg.naturalWidth;
+        canvas.height = mapaImg.naturalHeight;
+        carregarDesenho();
+    };
+    if (mapaImg.complete) mapaImg.onload();
+
+    // Zoom
+    document.getElementById('btn-zoom-in').onclick = () => { zoom += 0.2; atualizarZoom(); };
+    document.getElementById('btn-zoom-out').onclick = () => { if(zoom > 0.2) zoom -= 0.2; atualizarZoom(); };
+    function atualizarZoom() { container.style.transform = `scale(${zoom})`; }
+
+    // Modos
+    document.getElementById('btn-check').onclick = () => { modo = 'check'; alternarBotao('btn-check'); };
+    document.getElementById('btn-draw').onclick = () => { modo = 'draw'; alternarBotao('btn-draw'); };
+    function alternarBotao(id) {
+        document.getElementById('btn-check').classList.remove('active');
+        document.getElementById('btn-draw').classList.remove('active');
+        document.getElementById(id).classList.add('active');
+    }
+
+    // INTERAÇÃO NO CANVAS
+    canvas.onmousedown = (e) => {
+        // Coordenadas puras dentro do Canvas
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / zoom;
+        const y = (e.clientY - rect.top) / zoom;
+
+        if (modo === 'check') {
+            const nota = inputNota.value.trim();
+            db.ref('pontos').push({ x, y, nota: nota });
+            inputNota.value = ""; // Limpa após colocar
+        } else {
+            desenhando = true;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+    };
+
+    canvas.onmousemove = (e) => {
+        if (!desenhando || modo !== 'draw') return;
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / zoom;
+        const y = (e.clientY - rect.top) / zoom;
+        
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 5;
+        ctx.lineJoin = "round";
+        ctx.stroke();
+    };
+
+    window.onmouseup = () => {
+        if (desenhando) {
+            desenhando = false;
+            db.ref('desenho').set(canvas.toDataURL());
+        }
+    };
+
+    // Firebase: Receber Checks
+    db.ref('pontos').on('child_added', snap => {
+        const p = snap.val();
+        const wrapper = document.createElement('div');
+        wrapper.className = 'ponto-wrapper';
+        wrapper.id = snap.key;
+        wrapper.style.left = p.x + 'px';
+        wrapper.style.top = p.y + 'px';
+        
+        wrapper.innerHTML = `
+            <div class="check-mark" onclick="apagarCheck('${snap.key}')">✓</div>
+            ${p.nota ? `<div class="nota-label">${p.nota}</div>` : ''}
+        `;
+        container.appendChild(wrapper);
     });
-  }
 
-  document.getElementById('btn-clear').onclick = () => {
-    if(confirm("Isso apagará TUDO para todos os usuários. Confirmar?")) db.ref('/').remove();
-  };
+    db.ref('pontos').on('child_removed', snap => {
+        document.getElementById(snap.key)?.remove();
+    });
+
+    function apagarCheck(id) {
+        db.ref('pontos/' + id).remove();
+    }
+
+    // Firebase: Receber Desenho
+    function carregarDesenho() {
+        db.ref('desenho').on('value', snap => {
+            const data = snap.val();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (data) {
+                const img = new Image();
+                img.onload = () => ctx.drawImage(img, 0, 0);
+                img.src = data;
+            }
+        });
+    }
+
+    document.getElementById('btn-clear').onclick = () => {
+        if(confirm("ATENÇÃO: Isso apaga o mapa inteiro para TODO MUNDO. Continuar?")) {
+            db.ref('/').remove();
+        }
+    };
 </script>
 
 </body>
