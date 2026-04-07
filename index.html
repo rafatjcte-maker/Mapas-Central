@@ -1,90 +1,58 @@
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Mapa Colaborativo - Versão Corrigida</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa Colaborativo Estável</title>
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: sans-serif; margin: 0; overflow: hidden; background: #333; height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: sans-serif; margin: 0; background: #f0f0f0; display: flex; flex-direction: column; align-items: center; }
     
-    .toolbar { 
-        padding: 10px; 
-        background: #fff; 
-        z-index: 1000; 
-        display: flex; 
-        justify-content: center; 
-        gap: 10px; 
-        box-shadow: 0 2px 10px rgba(0,0,0,0.5); 
-    }
+    .toolbar { position: sticky; top: 0; background: white; width: 100%; padding: 15px; display: flex; justify-content: center; gap: 10px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-wrap: wrap; }
     
-    /* Container principal que segura tudo */
-    #viewport {
-      flex: 1;
-      position: relative;
-      overflow: hidden;
-      touch-action: none; /* Impede scroll da página */
-    }
+    #viewport { width: 95vw; height: 70vh; overflow: auto; border: 2px solid #ccc; background: #ddd; position: relative; margin-top: 10px; }
 
-    /* O que sofre o Zoom */
-    #mapa-container { 
-      position: absolute;
-      transform-origin: 0 0;
-      line-height: 0;
-      transition: transform 0.1s ease-out; /* Suaviza o movimento */
-    }
+    #mapa-container { position: relative; transform-origin: 0 0; }
+    #mapa { display: block; user-select: none; -webkit-user-drag: none; }
+    canvas { position: absolute; top: 0; left: 0; z-index: 5; cursor: crosshair; touch-action: none; }
 
-    #mapa { 
-        display: block; 
-        user-select: none; 
-        -webkit-user-drag: none; 
-        pointer-events: none; /* IMPORTANTE: imagem não bloqueia cliques */
-    }
-
-    canvas { 
-        position: absolute; 
-        top: 0; 
-        left: 0; 
-        z-index: 5; 
-        cursor: crosshair;
-    }
-
-    .ponto-wrapper {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      z-index: 10;
-      text-align: center;
-      cursor: pointer;
-    }
+    .ponto-wrapper { position: absolute; transform: translate(-50%, -50%); z-index: 10; text-align: center; pointer-events: auto; cursor: pointer; }
     .check-mark { color: #28a745; font-size: 24px; font-weight: bold; text-shadow: 1px 1px 2px #000; }
-    .nota-texto { background: white; padding: 2px 5px; border-radius: 4px; font-size: 12px; border: 1px solid #ccc; display: block; }
+    .nota-label { background: white; padding: 2px 5px; border-radius: 3px; font-size: 11px; border: 1px solid #999; white-space: nowrap; }
 
-    button { padding: 10px 15px; cursor: pointer; border-radius: 5px; border: 1px solid #ccc; background: #f8f9fa; font-weight: bold; }
-    button.active { background: #007bff; color: white; }
-    .btn-clear { color: #dc3545; }
+    .painel-notas { background: white; width: 95vw; padding: 15px; margin-top: 10px; border-radius: 8px; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
+    input[type="text"] { width: 70%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    
+    button { padding: 10px 15px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; font-weight: bold; }
+    button.active { background: #007bff; color: white; border-color: #0056b3; }
   </style>
 </head>
 <body>
 
 <div class="toolbar">
-  <button id="btn-check" class="active">Marcar ✓</button>
-  <button id="btn-draw">Desenhar</button>
-  <button id="btn-reset">Reset Zoom</button>
-  <button id="btn-clear" class="btn-clear">Apagar Tudo</button>
+  <button id="btn-check" class="active">Modo Check ✓</button>
+  <button id="btn-draw">Modo Desenho</button>
+  <button id="btn-zoom-in">Zoom +</button>
+  <button id="btn-zoom-out">Zoom -</button>
+  <button id="btn-clear" style="color:red">Limpar Tudo</button>
 </div>
 
 <div id="viewport">
   <div id="mapa-container">
-    <img id="mapa" src="sua_imagem.jpeg" alt="Mapa">
+    <img id="mapa" src="sua_imagem.jpeg">
     <canvas id="canvas-camada"></canvas>
   </div>
+</div>
+
+<div class="painel-notas">
+  <strong>Anotação Opcional:</strong><br><br>
+  <input type="text" id="campo-nota" placeholder="Escreva aqui antes de clicar no mapa...">
+  <p style="font-size: 12px; color: #666;">* Escreva o texto acima e clique no mapa para marcar. Clique em um "✓" para apagá-lo.</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-  // CONFIGURAÇÃO FIREBASE
   const firebaseConfig = {
     apiKey: "AIzaSyASJAChidjwTNrZznygxsjTtOVX5YTi6Vc",
     authDomain: "mapas-central-62849.firebaseapp.com",
@@ -102,114 +70,72 @@
   const mapaImg = document.getElementById('mapa');
   const canvas = document.getElementById('canvas-camada');
   const ctx = canvas.getContext('2d');
+  const campoNota = document.getElementById('campo-nota');
 
-  let scale = 1;
+  let zoom = 1.0;
   let modo = 'check';
   let desenhando = false;
-  let lastDist = 0; // Para pinça
 
-  // Sincroniza o tamanho do canvas com a imagem
-  function inicializar() {
+  mapaImg.onload = () => {
     canvas.width = mapaImg.width;
     canvas.height = mapaImg.height;
-    aplicarZoom();
-  }
-  mapaImg.onload = inicializar;
-  if (mapaImg.complete) inicializar();
+    carregarDesenho();
+  };
+  if (mapaImg.complete) mapaImg.onload();
 
-  function aplicarZoom() {
-    container.style.transform = `scale(${scale})`;
-  }
+  // CONTROLES DE ZOOM
+  document.getElementById('btn-zoom-in').onclick = () => { zoom += 0.2; aplicarZoom(); };
+  document.getElementById('btn-zoom-out').onclick = () => { if(zoom > 0.4) zoom -= 0.2; aplicarZoom(); };
+  function aplicarZoom() { container.style.transform = `scale(${zoom})`; }
 
-  // --- LÓGICA DE ZOOM (PINÇA E MOUSE) ---
-  window.addEventListener('wheel', (e) => {
-    if (e.ctrlKey || modo === 'check') { // Zoom com scroll
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
-        scale = Math.min(Math.max(0.5, scale + delta), 4);
-        aplicarZoom();
-    }
-  }, { passive: false });
-
-  window.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-      if (lastDist > 0) {
-        const delta = dist / lastDist;
-        scale = Math.min(Math.max(0.5, scale * delta), 4);
-        aplicarZoom();
-      }
-      lastDist = dist;
-    }
-  }, { passive: false });
-
-  window.addEventListener('touchend', () => { lastDist = 0; });
-
-  // --- CLIQUES E DESENHO (CORRIGIDO PARA ZOOM) ---
-  canvas.addEventListener('mousedown', (e) => lidarInicio(e.clientX, e.clientY));
-  canvas.addEventListener('mousemove', (e) => lidarMovimento(e.clientX, e.clientY));
-  window.addEventListener('mouseup', lidarFim);
-
-  canvas.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) lidarInicio(e.touches[0].clientX, e.touches[0].clientY);
-  });
-  canvas.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 1 && modo === 'draw') {
-        e.preventDefault();
-        lidarMovimento(e.touches[0].clientX, e.touches[0].clientY);
-    }
-  });
-
-  function lidarInicio(clientX, clientY) {
-    const rect = container.getBoundingClientRect();
-    // A mágica está aqui: (Posição do clique - Posição do mapa) / Zoom atual
-    const x = (clientX - rect.left) / scale;
-    const y = (clientY - rect.top) / scale;
-
-    if (modo === 'check') {
-      const nota = prompt("Anotação:");
-      if (nota !== null) db.ref('pontos').push({ x, y, nota });
-    } else {
-      desenhando = true;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-    }
-  }
-
-  function lidarMovimento(clientX, clientY) {
-    if (!desenhando || modo !== 'draw') return;
-    const rect = container.getBoundingClientRect();
-    const x = (clientX - rect.left) / scale;
-    const y = (clientY - rect.top) / scale;
-
-    ctx.lineTo(x, y);
-    ctx.strokeStyle = "red";
-    ctx.lineWidth = 3 / scale; // Ajusta a linha para não ficar grossa no zoom
-    ctx.lineJoin = "round";
-    ctx.stroke();
-  }
-
-  function lidarFim() {
-    if (desenhando) {
-      desenhando = false;
-      db.ref('desenho').set(canvas.toDataURL());
-    }
-  }
-
-  // --- BOTÕES ---
-  document.getElementById('btn-check').onclick = () => { modo = 'check'; alternar('btn-check'); };
-  document.getElementById('btn-draw').onclick = () => { modo = 'draw'; alternar('btn-draw'); };
-  document.getElementById('btn-reset').onclick = () => { scale = 1; aplicarZoom(); };
-  document.getElementById('btn-clear').onclick = () => { if(confirm("Apagar tudo?")) db.ref('/').remove(); };
-
-  function alternar(id) {
+  // ALTERNAR MODOS
+  document.getElementById('btn-check').onclick = () => { modo = 'check'; atualizarBotoes('btn-check'); };
+  document.getElementById('btn-draw').onclick = () => { modo = 'draw'; atualizarBotoes('btn-draw'); };
+  function atualizarBotoes(id) {
     document.getElementById('btn-check').classList.remove('active');
     document.getElementById('btn-draw').classList.remove('active');
     document.getElementById(id).classList.add('active');
   }
 
-  // --- SINCRONIZAÇÃO FIREBASE ---
+  // AÇÃO DE CLIQUE / DESENHO
+  canvas.onmousedown = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / zoom;
+    const y = (e.clientY - rect.top) / zoom;
+
+    if (modo === 'check') {
+      const nota = campoNota.value;
+      db.ref('pontos').push({ x, y, nota: nota });
+      campoNota.value = ""; // Limpa após usar
+    } else {
+      desenhando = true;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+    }
+  };
+
+  canvas.onmousemove = (e) => {
+    if (!desenhando || modo !== 'draw') return;
+    const rect = canvas.getBoundingClientRect();
+    ctx.lineTo((e.clientX - rect.left) / zoom, (e.clientY - rect.top) / zoom);
+    ctx.strokeStyle = "red";
+    ctx.lineWidth = 3 / zoom;
+    ctx.stroke();
+  };
+
+  window.onmouseup = () => {
+    if (desenhando) {
+      desenhando = false;
+      db.ref('desenho').set(canvas.toDataURL());
+    }
+  };
+
+  // LIMPAR TUDO
+  document.getElementById('btn-clear').onclick = () => {
+    if(confirm("Deseja apagar todos os checks e desenhos?")) db.ref('/').remove();
+  };
+
+  // FIREBASE SINCRONIZAÇÃO
   db.ref('pontos').on('child_added', snap => {
     const p = snap.val();
     const div = document.createElement('div');
@@ -217,24 +143,28 @@
     div.id = snap.key;
     div.style.left = p.x + 'px';
     div.style.top = p.y + 'px';
-    div.innerHTML = `<div class="check-mark">✓</div>${p.nota ? `<span class="nota-texto">${p.nota}</span>` : ''}`;
+    div.innerHTML = `<div class="check-mark">✓</div>${p.nota ? `<div class="nota-label">${p.nota}</div>` : ''}`;
     div.onclick = (e) => { e.stopPropagation(); db.ref('pontos/' + snap.key).remove(); };
     container.appendChild(div);
   });
 
   db.ref('pontos').on('child_removed', snap => {
-    document.getElementById(snap.key)?.remove();
+    const el = document.getElementById(snap.key);
+    if(el) el.remove();
   });
 
-  db.ref('desenho').on('value', snap => {
-    const data = snap.val();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (data) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0);
-      img.src = data;
-    }
-  });
+  function carregarDesenho() {
+    db.ref('desenho').on('value', snap => {
+      const data = snap.val();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (data) {
+        const img = new Image();
+        img.onload = () => ctx.drawImage(img, 0, 0);
+        img.src = data;
+      }
+    });
+  }
 </script>
+
 </body>
 </html>
