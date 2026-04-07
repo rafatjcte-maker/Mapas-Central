@@ -1,56 +1,66 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <title>Mapa Colaborativo</title>
+  <title>Mapa Colaborativo - Borracha Seletiva</title>
   <style>
-    #mapa-container {
-      position: relative;
-      width: 800px; /* ajuste se quiser outra largura */
-      cursor: crosshair;
-    }
-    #mapa {
-      width: 100%;
-      display: block;
-    }
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f0f0f0; margin: 20px; }
+    
+    .toolbar { margin-bottom: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; gap: 10px; }
+    button { padding: 8px 15px; cursor: pointer; border: 1px solid #ccc; background: white; border-radius: 4px; }
+    button.active { background: #007bff; color: white; border-color: #0056b3; }
+    .btn-danger { color: red; border-color: red; margin-left: 20px; }
 
-    /* Cada ponto será um X vermelho */
+    #mapa-container { position: relative; width: 800px; user-select: none; }
+    #mapa { width: 100%; display: block; }
+
+    /* Canvas para desenhos */
+    #canvas-desenho {
+      position: absolute;
+      top: 0;
+      left: 0;
+      cursor: default;
+    }
+    #canvas-desenho.modo-draw { cursor: crosshair; }
+    #canvas-desenho.modo-erase { cursor: cell; }
+
+    /* Estilo do Check (✓) */
     .ponto {
       position: absolute;
-      width: 20px;
-      height: 20px;
-      pointer-events: auto;
+      width: 24px;
+      height: 24px;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #28a745;
+      font-weight: bold;
+      font-size: 24px;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+      transform: translate(-50%, -50%);
+      z-index: 10;
     }
-    .ponto::before,
-    .ponto::after {
-      content: '';
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      width: 16px;
-      height: 2px;
-      background-color: red;
-      transform-origin: center;
-    }
-    .ponto::before { transform: translate(-50%, -50%) rotate(45deg); }
-    .ponto::after { transform: translate(-50%, -50%) rotate(-45deg); }
+    .ponto::after { content: '✓'; }
   </style>
 </head>
 <body>
 
-<h2>Mapa Colaborativo</h2>
+<div class="toolbar">
+  <button id="btn-check" class="active">Marcar (✓)</button>
+  <button id="btn-draw">Desenhar</button>
+  <button id="btn-erase">Borracha de Linhas</button>
+  <button id="btn-clear" class="btn-danger">Limpar Tudo</button>
+</div>
 
 <div id="mapa-container">
   <img id="mapa" src="sua_imagem.jpeg" alt="Mapa" />
+  <canvas id="canvas-desenho"></canvas>
 </div>
 
-<!-- Firebase compatível com navegador -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-  // Configuração do seu Firebase
   const firebaseConfig = {
     apiKey: "AIzaSyASJAChidjwTNrZznygxsjTtOVX5YTi6Vc",
     authDomain: "mapas-central-62849.firebaseapp.com",
@@ -64,51 +74,136 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
 
-  const mapa = document.getElementById('mapa');
-  const container = document.getElementById('mapa-container');
-  const pontosDOM = {}; // guarda referência aos Xs
+  const canvas = document.getElementById('canvas-desenho');
+  const ctx = canvas.getContext('2d');
+  const imgMapa = document.getElementById('mapa');
+  
+  let modo = 'check'; 
+  let desenhando = false;
+  let pontosDOM = {};
+  let caminhoAtual = []; // Guarda os pontos da linha que está sendo desenhada agora
+  let todasLinhas = {};  // Guarda todas as linhas vindas do Firebase para detecção de colisão
 
-  // Criar ponto X na tela
-  function criarPonto(id, x, y) {
-    const div = document.createElement('div');
-    div.classList.add('ponto');
-    div.style.left = x + 'px';
-    div.style.top = y + 'px';
-    div.dataset.id = id;
-
-    // Apagar ponto ao clicar
-    div.addEventListener('click', function(event) {
-      event.stopPropagation();
-      db.ref('pontos/' + this.dataset.id).remove();
-    });
-
-    container.appendChild(div);
-    pontosDOM[id] = div;
-  }
-
-  // Adicionar novo ponto ao clicar na imagem
-  mapa.onclick = function(e) {
-    const x = e.offsetX;
-    const y = e.offsetY;
-    db.ref('pontos').push({ x, y });
+  imgMapa.onload = () => {
+    canvas.width = imgMapa.clientWidth;
+    canvas.height = imgMapa.clientHeight;
   };
 
-  // Mostrar pontos existentes do Firebase
-  db.ref('pontos').on('child_added', snapshot => {
-    const id = snapshot.key;
-    const ponto = snapshot.val();
-    criarPonto(id, ponto.x, ponto.y);
+  // --- FERRAMENTAS ---
+  const botoes = {
+    check: document.getElementById('btn-check'),
+    draw: document.getElementById('btn-draw'),
+    erase: document.getElementById('btn-erase')
+  };
+
+  function setModo(novoModo) {
+    modo = novoModo;
+    Object.keys(botoes).forEach(k => botoes[k].classList.toggle('active', k === modo));
+    canvas.className = (modo === 'draw') ? 'modo-draw' : (modo === 'erase' ? 'modo-erase' : '');
+  }
+
+  botoes.check.onclick = () => setModo('check');
+  botoes.draw.onclick = () => setModo('draw');
+  botoes.erase.onclick = () => setModo('erase');
+
+  // --- LÓGICA DE CLIQUE E DESENHO ---
+  canvas.onmousedown = (e) => {
+    const x = e.offsetX;
+    const y = e.offsetY;
+
+    if (modo === 'check') {
+      db.ref('pontos').push({ x, y });
+    } else if (modo === 'draw') {
+      desenhando = true;
+      caminhoAtual = [{x, y}];
+    } else if (modo === 'erase') {
+      verificarApagarLinha(x, y);
+    }
+  };
+
+  canvas.onmousemove = (e) => {
+    if (!desenhando || modo !== 'draw') return;
+    const x = e.offsetX;
+    const y = e.offsetY;
+    caminhoAtual.push({x, y});
+    renderizarTudo(); // Desenha o "rascunho" em tempo real
+  };
+
+  canvas.onmouseup = () => {
+    if (desenhando) {
+      desenhando = false;
+      if (caminhoAtual.length > 1) {
+        db.ref('linhas_v2').push(caminhoAtual);
+      }
+      caminhoAtual = [];
+    }
+  };
+
+  // --- RENDERIZAÇÃO ---
+  function renderizarTudo() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 1. Desenha linhas salvas no Firebase
+    Object.values(todasLinhas).forEach(linha => desenharCaminho(linha, "#ff0000"));
+    
+    // 2. Desenha a linha que está sendo feita agora
+    if (caminhoAtual.length > 0) desenharCaminho(caminhoAtual, "#ff0000");
+  }
+
+  function desenharCaminho(pontos, cor) {
+    if (!pontos || pontos.length < 2) return;
+    ctx.beginPath();
+    ctx.strokeStyle = cor;
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.moveTo(pontos[0].x, pontos[0].y);
+    for (let i = 1; i < pontos.length; i++) {
+      ctx.lineTo(pontos[i].x, pontos[i].y);
+    }
+    ctx.stroke();
+  }
+
+  // --- BORRACHA SELETIVA ---
+  function verificarApagarLinha(clickX, clickY) {
+    const margem = 10; // Sensibilidade do clique
+    Object.keys(todasLinhas).forEach(id => {
+      const linha = todasLinhas[id];
+      const clicouNaLinha = linha.some(p => 
+        Math.abs(p.x - clickX) < margem && Math.abs(p.y - clickY) < margem
+      );
+      if (clicouNaLinha) {
+        db.ref('linhas_v2/' + id).remove();
+      }
+    });
+  }
+
+  // --- SINCRONIZAÇÃO FIREBASE ---
+  // Pontos (Checks)
+  db.ref('pontos').on('child_added', snap => {
+    const {x, y} = snap.val();
+    const div = document.createElement('div');
+    div.classList.add('ponto');
+    div.style.left = x + 'px'; div.style.top = y + 'px';
+    div.onclick = (e) => { e.stopPropagation(); db.ref('pontos/' + snap.key).remove(); };
+    document.getElementById('mapa-container').appendChild(div);
+    pontosDOM[snap.key] = div;
+  });
+  db.ref('pontos').on('child_removed', snap => {
+    if (pontosDOM[snap.key]) { pontosDOM[snap.key].remove(); delete pontosDOM[snap.key]; }
   });
 
-  // Remover ponto quando apagado do Firebase
-  db.ref('pontos').on('child_removed', snapshot => {
-    const id = snapshot.key;
-    const div = pontosDOM[id];
-    if (div) {
-      div.remove();
-      delete pontosDOM[id];
-    }
+  // Linhas (v2 - Coleção de caminhos)
+  db.ref('linhas_v2').on('value', snap => {
+    todasLinhas = snap.val() || {};
+    renderizarTudo();
   });
+
+  document.getElementById('btn-clear').onclick = () => {
+    if(confirm("Apagar tudo definitivamente?")) {
+      db.ref('pontos').remove();
+      db.ref('linhas_v2').remove();
+    }
+  };
 </script>
 
 </body>
