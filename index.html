@@ -2,49 +2,29 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Mapa Colaborativo - Versão Blindada</title>
+    <title>Mapa Colaborativo Simples</title>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #1a1a1a; color: white; display: flex; flex-direction: column; height: 100vh; }
+        body { font-family: sans-serif; margin: 0; background: #1a1a1a; color: white; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
         
-        /* Barra de Ferramentas */
         .toolbar { background: #333; padding: 10px; display: flex; justify-content: center; gap: 10px; border-bottom: 2px solid #444; z-index: 1000; }
         
-        /* Área do Mapa */
-        #viewport { flex: 1; overflow: auto; position: relative; background: #000; }
+        #viewport { flex: 1; overflow: auto; position: relative; background: #000; touch-action: none; }
         #mapa-container { position: relative; transform-origin: 0 0; display: inline-block; }
         
-        #mapa { 
-            display: block; 
-            pointer-events: none; /* Impede que o navegador tente "pegar" a imagem */
-            user-select: none;
-            -webkit-user-drag: none;
-        }
+        #mapa { display: block; pointer-events: none; user-select: none; -webkit-user-drag: none; }
 
-        canvas { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            z-index: 5; 
-            cursor: crosshair; 
-            touch-action: none; 
-        }
+        canvas { position: absolute; top: 0; left: 0; z-index: 5; cursor: crosshair; }
 
-        /* Marcadores */
         .ponto-wrapper {
             position: absolute;
             z-index: 100;
             transform: translate(-50%, -50%);
-            text-align: center;
-            pointer-events: auto; /* Garante que o ✓ seja clicável para apagar */
+            cursor: pointer;
+            pointer-events: auto;
         }
-        .check-mark { color: #00ff44; font-size: 30px; font-weight: bold; text-shadow: 2px 2px 4px #000; cursor: pointer; line-height: 1; }
-        .nota-label { background: white; color: black; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #000; margin-top: 2px; display: block; }
+        .check-mark { color: #00ff44; font-size: 32px; font-weight: bold; text-shadow: 2px 2px 4px #000; line-height: 1; }
 
-        /* Rodapé de Anotação */
-        .footer { background: #333; padding: 15px; border-top: 2px solid #444; text-align: center; }
-        input[type="text"] { width: 300px; padding: 10px; border-radius: 4px; border: 1px solid #555; }
-        
-        button { padding: 10px 15px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; background: #eee; }
+        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; background: #eee; }
         button.active { background: #007bff; color: white; }
         .btn-clear { background: #ff4444; color: white; margin-left: 20px; }
     </style>
@@ -66,16 +46,10 @@
     </div>
 </div>
 
-<div class="footer">
-    <strong>Anotação:</strong> 
-    <input type="text" id="input-nota" placeholder="Escreva aqui e DEPOIS clique no mapa">
-</div>
-
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-    // Configuração Firebase
     const firebaseConfig = {
         apiKey: "AIzaSyASJAChidjwTNrZznygxsjTtOVX5YTi6Vc",
         authDomain: "mapas-central-62849.firebaseapp.com",
@@ -93,13 +67,11 @@
     const mapaImg = document.getElementById('mapa');
     const canvas = document.getElementById('canvas-camada');
     const ctx = canvas.getContext('2d');
-    const inputNota = document.getElementById('input-nota');
 
     let zoom = 1.0;
     let modo = 'check';
     let desenhando = false;
 
-    // Ajusta o Canvas apenas quando a imagem carregar
     mapaImg.onload = () => {
         canvas.width = mapaImg.naturalWidth;
         canvas.height = mapaImg.naturalHeight;
@@ -108,30 +80,27 @@
     if (mapaImg.complete) mapaImg.onload();
 
     // Zoom
-    document.getElementById('btn-zoom-in').onclick = () => { zoom += 0.2; atualizarZoom(); };
-    document.getElementById('btn-zoom-out').onclick = () => { if(zoom > 0.2) zoom -= 0.2; atualizarZoom(); };
-    function atualizarZoom() { container.style.transform = `scale(${zoom})`; }
+    document.getElementById('btn-zoom-in').onclick = () => { zoom += 0.2; aplicarZoom(); };
+    document.getElementById('btn-zoom-out').onclick = () => { if(zoom > 0.2) zoom -= 0.2; aplicarZoom(); };
+    function aplicarZoom() { container.style.transform = `scale(${zoom})`; }
 
     // Modos
-    document.getElementById('btn-check').onclick = () => { modo = 'check'; alternarBotao('btn-check'); };
-    document.getElementById('btn-draw').onclick = () => { modo = 'draw'; alternarBotao('btn-draw'); };
-    function alternarBotao(id) {
+    document.getElementById('btn-check').onclick = () => { modo = 'check'; alternar('btn-check'); };
+    document.getElementById('btn-draw').onclick = () => { modo = 'draw'; alternar('btn-draw'); };
+    function alternar(id) {
         document.getElementById('btn-check').classList.remove('active');
         document.getElementById('btn-draw').classList.remove('active');
         document.getElementById(id).classList.add('active');
     }
 
-    // INTERAÇÃO NO CANVAS
+    // Ação no Canvas
     canvas.onmousedown = (e) => {
-        // Coordenadas puras dentro do Canvas
         const rect = canvas.getBoundingClientRect();
         const x = (e.clientX - rect.left) / zoom;
         const y = (e.clientY - rect.top) / zoom;
 
         if (modo === 'check') {
-            const nota = inputNota.value.trim();
-            db.ref('pontos').push({ x, y, nota: nota });
-            inputNota.value = ""; // Limpa após colocar
+            db.ref('pontos').push({ x, y });
         } else {
             desenhando = true;
             ctx.beginPath();
@@ -159,31 +128,24 @@
         }
     };
 
-    // Firebase: Receber Checks
+    // Firebase: Checks
     db.ref('pontos').on('child_added', snap => {
         const p = snap.val();
-        const wrapper = document.createElement('div');
-        wrapper.className = 'ponto-wrapper';
-        wrapper.id = snap.key;
-        wrapper.style.left = p.x + 'px';
-        wrapper.style.top = p.y + 'px';
-        
-        wrapper.innerHTML = `
-            <div class="check-mark" onclick="apagarCheck('${snap.key}')">✓</div>
-            ${p.nota ? `<div class="nota-label">${p.nota}</div>` : ''}
-        `;
-        container.appendChild(wrapper);
+        const div = document.createElement('div');
+        div.className = 'ponto-wrapper';
+        div.id = snap.key;
+        div.style.left = p.x + 'px';
+        div.style.top = p.y + 'px';
+        div.innerHTML = `<div class="check-mark">✓</div>`;
+        div.onclick = (e) => { e.stopPropagation(); db.ref('pontos/' + snap.key).remove(); };
+        container.appendChild(div);
     });
 
     db.ref('pontos').on('child_removed', snap => {
         document.getElementById(snap.key)?.remove();
     });
 
-    function apagarCheck(id) {
-        db.ref('pontos/' + id).remove();
-    }
-
-    // Firebase: Receber Desenho
+    // Firebase: Desenho
     function carregarDesenho() {
         db.ref('desenho').on('value', snap => {
             const data = snap.val();
@@ -197,11 +159,8 @@
     }
 
     document.getElementById('btn-clear').onclick = () => {
-        if(confirm("ATENÇÃO: Isso apaga o mapa inteiro para TODO MUNDO. Continuar?")) {
-            db.ref('/').remove();
-        }
+        if(confirm("Apagar tudo para todos?")) db.ref('/').remove();
     };
 </script>
-
 </body>
 </html>
